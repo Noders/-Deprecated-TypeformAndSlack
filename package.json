@@ -1,0 +1,23 @@
+{
+  "name": "hashtag700_2",
+  "version": "1.0.0",
+  "description": "Hashtag700 integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "hashtag700",
+    "typeform",
+    "slack"
+  ],
+  "author": "fforres",
+  "license": "MIT",
+  "dependencies": {
+    "cron": "^1.0.9",
+    "lodash": "^3.9.3",
+    "lokijs": "^1.2.5",
+    "nedb": "^1.1.2",
+    "request": "^2.57.0"
+  }
+}
