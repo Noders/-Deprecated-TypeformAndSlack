@@ -99,7 +99,7 @@ var invitarEmprendedorASlack = function(emprendedor, channelsIDS) {
                 channels: channelsIDS.join(','),
                 first_name: emprendedor.nombre,
                 last_name: emprendedor.apellido,
-                token: slack.KEY,
+                token: config.slack.KEY,
                 set_active: true
             }
         }, function(err, httpResponse, body) {
