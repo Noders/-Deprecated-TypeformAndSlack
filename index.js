@@ -2,8 +2,7 @@ var request = require('request'); // COOL PACKAGE TO DO HTTP REQUESTS
 var _ = require('lodash'); //COOL LIBRARY
 var CronJob = require('cron').CronJob; //COOL CRON MANAGER FOR NODE
 var Datastore = require('nedb') //COOL DATABASE
-
-
+var config = require('./config')
 
 
 //LOADS DB;
@@ -13,49 +12,8 @@ var emprendedores = new Datastore({
 });
 
 
-
-//VARIABLES
-var timer = {
-    every_minute: '*/1 * * * *',
-    every_second: '* * * * * *',
-    every_fifteen: '*/15 * * * *'
-};
-var typeform = {
-    KEY: 'YOUR_TYPEFORM_KEY',
-    URL: 'https://api.typeform.com/v0/form/YOUR_TYPEFORM_FORM_ID?key=YOUR_TYPEFORM_KEY&completed=true',
-    FORM_ID: 'YOUR_TYPEFORM_FORM_ID', // THE ID FOR THE FORM ... THE ONE THE USER SEES IN THE URL WHEN FILLING YOUR FORM
-    FORM: {
-        email: 'email_5983646', //THE NAME TYPEFORM GIVES TO FIELDS 
-        nombre: 'textfield_5983571',
-        apellido: 'textfield_5983588'
-    }
-};
-var slack = {
-    KEY: 'YOUR_SLACK_ADMIN_TOKEN',
-    CHANNELS_ENCRYPTED: [
-        'ARRAY',
-        'OF',
-        'THE',
-        'IDS',
-        'SLACK',
-        'GIVES',
-        'TO',
-        'CHANNELS',
-        'YOU',
-        'WANT',
-        'TO',
-        'INVITE',
-        'THE',
-        'USER',
-        'TO'
-    ] // CAN BE OBTAINED BY LOOKING INTO THE REQUEST SLACK DOES WHEN INVITING A NEW USER 
-};
-
-
-
-
 //cada segundo
-new CronJob(timer.every_fifteen, function() {
+new CronJob(config.timer.every_fifteen, function() {
     start()
 }, null, true, 'America/Los_Angeles');
 
@@ -68,18 +26,35 @@ var getPaginationToQueryTypeForms = function() {
 
 //GETS TE INFO FROM TYPEFORMS
 var getInfoFromTypeForms = function(offset) {
-    request.get(typeform.URL + '&offset=' + offset, function(err, data) {
+    request.get(config.typeform.URL + '&offset=' + offset, function(err, data) {
         if (err) {
             console.log(err)
         } else if (data) {
             var respuestas = JSON.parse(data.body).responses;
-            saveToDataBase(respuestas);
+            listaDeCanales(respuestas)
+
         }
     })
 }
 
+
+
+var listaDeCanales = function(respuestas) {
+    request.post({
+        url: config.slack.channelsUrls,
+        form: {
+            token: config.slack.KEY,
+            exclude_archived: 1
+        }
+    }, function(err, httpResponse, body) {
+        var channelsIDS = _.pluck(JSON.parse(body).channels, "id");
+        saveToDataBase(respuestas, channelsIDS);
+
+    })
+}
+
 //SAVES THE INFO TO THE DATABASE
-var saveToDataBase = function(respuestas) {
+var saveToDataBase = function(respuestas, channelsIDS) {
     _.each(respuestas, function(respuesta, i) {
         //CHECK IF THERE IS ANY PERSON WITH THAT ID
         emprendedores.find({
@@ -89,18 +64,18 @@ var saveToDataBase = function(respuestas) {
                 //GUARDAR NUEVO PERSON
                 if (data.length === 0) {
                     var emp = {
-                        id: respuesta.id,
-                        date: respuesta.metadata.date_submit,
-                        email: respuesta.answers[typeform.FORM.email],
-                        nombre: respuesta.answers[typeform.FORM.nombre],
-                        apellido: respuesta.answers[typeform.FORM.apellido]
-                    }
-                    //agregar el emprendedor a slack
+                            id: respuesta.id,
+                            date: respuesta.metadata.date_submit,
+                            email: respuesta.answers[config.typeform.FORM.email],
+                            nombre: respuesta.answers[config.typeform.FORM.nombre],
+                            apellido: respuesta.answers[config.typeform.FORM.apellido]
+                        }
+                        //agregar el emprendedor a slack
                     emprendedores.insert(emp, function(err) {
                         if (err) {
                             console.log(err)
                         } else {
-                            invitarEmprendedorASlack(emp)
+                            invitarEmprendedorASlack(emp, channelsIDS);
                         }
                     })
                 }
@@ -111,22 +86,24 @@ var saveToDataBase = function(respuestas) {
 
 
 
+
+
+
 //*INVITES USER TO SLACK*//
-var invitarEmprendedorASlack = function(emprendedor) {
-    var inviteUrl = 'https://7oo.slack.com/api/users.admin.invite?t=' + (Date.parse(new Date()) / 1000)
-    request.post({
-        url: inviteUrl,
-        form: {
-            email: emprendedor.email,
-            channels: slack.CHANNELS_ENCRYPTED.join(),
-            first_name: emprendedor.nombre,
-            last_name: emprendedor.apellido,
-            token: slack.KEY,
-            set_active: true
-        }
-    }, function(err, httpResponse, body) {
-        console.log(body)
-    })
+var invitarEmprendedorASlack = function(emprendedor, channelsIDS) {
+    var inviteUrl = config.slack.inviteUrl + (Date.parse(new Date()) / 1000)
+        request.post({
+            url: inviteUrl,
+            form: {
+                email: emprendedor.email,
+                channels: channelsIDS.join(','),
+                first_name: emprendedor.nombre,
+                last_name: emprendedor.apellido,
+                token: slack.KEY,
+                set_active: true
+            }
+        }, function(err, httpResponse, body) {
+        })
 }
 
 var start = function() {
